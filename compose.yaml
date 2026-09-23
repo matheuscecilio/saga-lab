@@ -1,0 +1,128 @@
+name: sagalab
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-sagalab}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-sagalab}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sagalab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sagalab}
+      POSTGRES_DB: ${POSTGRES_DB:-sagalab}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  orchestrator-migrations:
+    build:
+      context: .
+      dockerfile: src/SagaLab.Orchestrator/Dockerfile
+      target: build
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        dotnet tool restore && dotnet tool run dotnet-ef database update --project src/SagaLab.Orchestrator/SagaLab.Orchestrator.csproj --startup-project src/SagaLab.Orchestrator/SagaLab.Orchestrator.csproj --context OrderSagaDbContext
+    working_dir: /src
+    environment:
+      ConnectionStrings__SagaDatabase: Host=postgres;Port=5432;Database=sagalab;Username=sagalab;Password=sagalab
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  orchestrator:
+    image: sagalab/orchestrator:local
+    build:
+      context: .
+      dockerfile: src/SagaLab.Orchestrator/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__RabbitMq: amqp://sagalab:sagalab@rabbitmq:5672/
+      ConnectionStrings__SagaDatabase: Host=postgres;Port=5432;Database=sagalab;Username=sagalab;Password=sagalab
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      orchestrator-migrations:
+        condition: service_completed_successfully
+
+  inventory-worker:
+    image: sagalab/inventory-worker:local
+    build:
+      context: .
+      dockerfile: src/SagaLab.Inventory.Worker/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__RabbitMq: amqp://sagalab:sagalab@rabbitmq:5672/
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  payment-worker:
+    image: sagalab/payment-worker:local
+    build:
+      context: .
+      dockerfile: src/SagaLab.Payment.Worker/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__RabbitMq: amqp://sagalab:sagalab@rabbitmq:5672/
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  shipping-worker:
+    image: sagalab/shipping-worker:local
+    build:
+      context: .
+      dockerfile: src/SagaLab.Shipping.Worker/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__RabbitMq: amqp://sagalab:sagalab@rabbitmq:5672/
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  order-api:
+    image: sagalab/order-api:local
+    build:
+      context: .
+      dockerfile: src/SagaLab.Order.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__RabbitMq: amqp://sagalab:sagalab@rabbitmq:5672/
+    ports:
+      - "8080:8080"
+    depends_on:
+      orchestrator:
+        condition: service_started
+      inventory-worker:
+        condition: service_started
+      payment-worker:
+        condition: service_started
+      shipping-worker:
+        condition: service_started
+
+volumes:
+  rabbitmq-data:
+  postgres-data:

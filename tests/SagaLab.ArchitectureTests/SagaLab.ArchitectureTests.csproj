@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MassTransit.TestFramework" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\SagaLab.Contracts\SagaLab.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\SagaLab.Inventory.Worker\SagaLab.Inventory.Worker.csproj" />
+    <ProjectReference Include="..\..\src\SagaLab.Payment.Worker\SagaLab.Payment.Worker.csproj" />
+    <ProjectReference Include="..\..\src\SagaLab.Shipping.Worker\SagaLab.Shipping.Worker.csproj" />
+    <ProjectReference Include="..\..\src\SagaLab.Orchestrator\SagaLab.Orchestrator.csproj" />
+  </ItemGroup>
+</Project>

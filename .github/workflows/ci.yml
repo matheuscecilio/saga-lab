@@ -1,0 +1,45 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-and-containerize:
+    name: Build, test and validate containers
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore SagaLab.sln
+
+      - name: Build
+        run: dotnet build SagaLab.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test SagaLab.sln --configuration Release --no-build --logger "console;verbosity=normal"
+
+      - name: Validate Docker Compose
+        run: docker compose -f compose.yaml config --quiet
+
+      - name: Build container images
+        run: docker compose -f compose.yaml build

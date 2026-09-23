@@ -1,0 +1,21 @@
+# .NET
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.rsuser
+TestResults/
+coverage/
+
+# IDEs
+.vs/
+.vscode/
+.idea/
+
+# Local configuration and secrets
+.env
+appsettings.Development.local.json
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <ItemGroup>
+    <PackageReference Include="MassTransit.RabbitMQ" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <ProjectReference Include="..\SagaLab.Contracts\SagaLab.Contracts.csproj" />
+  </ItemGroup>
+</Project>
