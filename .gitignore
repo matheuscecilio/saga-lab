@@ -14,7 +14,9 @@ coverage/
 
 # Local configuration and secrets
 .env
+.env.production
 appsettings.Development.local.json
+docs/
 
 # OS
 .DS_Store

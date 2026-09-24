@@ -1,0 +1,28 @@
+services:
+  rabbitmq:
+    ports: !reset []
+    restart: unless-stopped
+
+  postgres:
+    ports: !reset []
+    restart: unless-stopped
+
+  orchestrator-migrations:
+    restart: "no"
+
+  orchestrator:
+    restart: unless-stopped
+
+  inventory-worker:
+    restart: unless-stopped
+
+  payment-worker:
+    restart: unless-stopped
+
+  shipping-worker:
+    restart: unless-stopped
+
+  order-api:
+    ports: !override
+      - "${SAGALAB_API_PORT:-80}:8080"
+    restart: unless-stopped

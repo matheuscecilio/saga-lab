@@ -1,0 +1,75 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to deploy
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployment-production
+  cancel-in-progress: false
+
+jobs:
+  validate-and-deploy:
+    name: Validate and deploy to OCI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OCI_HOST: ${{ secrets.OCI_HOST }}
+      OCI_USER: ${{ secrets.OCI_USER }}
+      OCI_SSH_PRIVATE_KEY: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+      OCI_SSH_KNOWN_HOSTS: ${{ secrets.OCI_SSH_KNOWN_HOSTS }}
+
+    steps:
+      - name: Check out selected revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build and test selected revision
+        run: |
+          dotnet restore SagaLab.sln
+          dotnet build SagaLab.sln --configuration Release --no-restore
+          dotnet test SagaLab.sln --configuration Release --no-build --logger "console;verbosity=normal"
+
+      - name: Validate required deployment secrets
+        shell: bash
+        run: |
+          test -n "$OCI_HOST"
+          test -n "$OCI_USER"
+          test -n "$OCI_SSH_PRIVATE_KEY"
+          test -n "$OCI_SSH_KNOWN_HOSTS"
+
+      - name: Configure SSH client
+        shell: bash
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$OCI_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$OCI_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Deploy exact validated commit
+        shell: bash
+        run: |
+          ssh -i "$HOME/.ssh/id_ed25519" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$OCI_USER@$OCI_HOST" "bash -s -- '$GITHUB_SHA'" <<'REMOTE'
+          set -eu
+          commit_sha="$1"
+          cd /opt/sagalab
+          git fetch --depth=1 origin "$commit_sha"
+          git checkout --detach "$commit_sha"
+          docker compose --env-file .env.production -f compose.yaml -f compose.production.yaml up --build --detach --remove-orphans
+          docker compose --env-file .env.production -f compose.yaml -f compose.production.yaml ps
+          REMOTE
